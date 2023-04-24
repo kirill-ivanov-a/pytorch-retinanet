@@ -2,6 +2,7 @@ import argparse
 import collections
 
 import numpy as np
+import wandb
 
 import torch
 import torch.optim as optim
@@ -21,16 +22,20 @@ print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 
 def main(args=None):
+    wandb.login()
+    wandb.init(project="retinanet-box-detection")
     parser = argparse.ArgumentParser(description='Simple training script for training a RetinaNet network.')
 
     parser.add_argument('--dataset', help='Dataset type, must be one of csv or coco.')
+    parser.add_argument('--batch', help='batch size', type=int, default=4)
     parser.add_argument('--coco_path', help='Path to COCO directory')
     parser.add_argument('--csv_train', help='Path to file containing training annotations (see readme)')
     parser.add_argument('--csv_classes', help='Path to file containing class list (see readme)')
     parser.add_argument('--csv_val', help='Path to file containing validation annotations (optional, see readme)')
+    parser.add_argument('--model_path', help='Path to model', type=str)
 
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
-    parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
+    parser.add_argument('--epochs', help='Number of epochs', type=int, default=5)
 
     parser = parser.parse_args(args)
 
@@ -66,26 +71,27 @@ def main(args=None):
     else:
         raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
 
-    sampler = AspectRatioBasedSampler(dataset_train, batch_size=2, drop_last=False)
+    sampler = AspectRatioBasedSampler(dataset_train, batch_size=parser.batch, drop_last=False)
     dataloader_train = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
 
     if dataset_val is not None:
         sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
         dataloader_val = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
 
-    # Create the model
-    if parser.depth == 18:
-        retinanet = model.resnet18(num_classes=dataset_train.num_classes(), pretrained=True)
-    elif parser.depth == 34:
-        retinanet = model.resnet34(num_classes=dataset_train.num_classes(), pretrained=True)
-    elif parser.depth == 50:
-        retinanet = model.resnet50(num_classes=dataset_train.num_classes(), pretrained=True)
-    elif parser.depth == 101:
-        retinanet = model.resnet101(num_classes=dataset_train.num_classes(), pretrained=True)
-    elif parser.depth == 152:
-        retinanet = model.resnet152(num_classes=dataset_train.num_classes(), pretrained=True)
-    else:
-        raise ValueError('Unsupported model depth, must be one of 18, 34, 50, 101, 152')
+    # # Create the model
+    # if parser.depth == 18:
+    #     retinanet = model.resnet18(num_classes=dataset_train.num_classes(), pretrained=True)
+    # elif parser.depth == 34:
+    #     retinanet = model.resnet34(num_classes=dataset_train.num_classes(), pretrained=True)
+    # elif parser.depth == 50:
+    #     retinanet = model.resnet50(num_classes=dataset_train.num_classes(), pretrained=True)
+    # elif parser.depth == 101:
+    #     retinanet = model.resnet101(num_classes=dataset_train.num_classes(), pretrained=True)
+    # elif parser.depth == 152:
+    #     retinanet = model.resnet152(num_classes=dataset_train.num_classes(), pretrained=True)
+    # else:
+    #     raise ValueError('Unsupported model depth, must be one of 18, 34, 50, 101, 152')
+    retinanet = torch.load(parser.model_path)
 
     use_gpu = True
 
@@ -104,10 +110,12 @@ def main(args=None):
 
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
 
-    loss_hist = collections.deque(maxlen=500)
+    classification_loss_history = collections.deque(maxlen=100)
+    regression_loss_history = collections.deque(maxlen=100)
 
     retinanet.train()
     retinanet.module.freeze_bn()
+    wandb.watch(retinanet)
 
     print('Num training images: {}'.format(len(dataset_train)))
 
@@ -126,7 +134,7 @@ def main(args=None):
                     classification_loss, regression_loss = retinanet([data['img'].cuda().float(), data['annot']])
                 else:
                     classification_loss, regression_loss = retinanet([data['img'].float(), data['annot']])
-                    
+
                 classification_loss = classification_loss.mean()
                 regression_loss = regression_loss.mean()
 
@@ -141,13 +149,21 @@ def main(args=None):
 
                 optimizer.step()
 
-                loss_hist.append(float(loss))
-
+                classification_loss_history.append(float(classification_loss))
+                regression_loss_history.append(float(regression_loss))
                 epoch_loss.append(float(loss))
 
                 print(
-                    'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
-                        epoch_num, iter_num, float(classification_loss), float(regression_loss), np.mean(loss_hist)))
+                    'Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f}'.format(
+                        epoch_num, iter_num, float(classification_loss), float(regression_loss)))
+
+                if iter_num % 100 == 0:
+                    wandb.log(
+                        {
+                            "Classification loss": np.mean(classification_loss_history),
+                            "Regression loss": np.mean(regression_loss_history),
+                        }
+                    )
 
                 del classification_loss
                 del regression_loss
