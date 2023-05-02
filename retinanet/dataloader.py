@@ -431,7 +431,6 @@ class Augmenter(object):
         transform = A.Compose(
             [
                 A.HorizontalFlip(p=0.5),
-                A.RandomBrightnessContrast(p=0.2),
                 A.RandomCrop(
                     width=np.random.randint(width // 2, width),
                     height=np.random.randint(height // 2, height),
