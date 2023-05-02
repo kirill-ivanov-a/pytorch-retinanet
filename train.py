@@ -3,7 +3,7 @@ import collections
 
 import numpy as np
 import wandb
-
+import albumentations as A
 import torch
 import torch.optim as optim
 from torchvision import transforms
@@ -35,7 +35,7 @@ def main(args=None):
     parser.add_argument('--model_path', help='Path to model', type=str)
 
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
-    parser.add_argument('--epochs', help='Number of epochs', type=int, default=5)
+    parser.add_argument('--epochs', help='Number of epochs', type=int, default=10)
 
     parser = parser.parse_args(args)
 
@@ -45,8 +45,13 @@ def main(args=None):
         if parser.coco_path is None:
             raise ValueError('Must provide --coco_path when training on COCO,')
 
-        dataset_train = CocoDataset(parser.coco_path, set_name='train2017',
-                                    transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+        dataset_train = CocoDataset(
+            parser.coco_path, set_name='train2017',
+            transform=transforms.Compose(
+                [
+                    Normalizer(),
+                    Augmenter(),
+                    Resizer()]))
         dataset_val = CocoDataset(parser.coco_path, set_name='val2017',
                                   transform=transforms.Compose([Normalizer(), Resizer()]))
 
