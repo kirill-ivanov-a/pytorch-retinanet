@@ -103,7 +103,13 @@ class CocoDataset(Dataset):
         coco_annotations = self.coco.loadAnns(annotations_ids)
         for idx, a in enumerate(coco_annotations):
             # some annotations have basically no width / height, skip them
-            if a["bbox"][2] < 1 or a["bbox"][3] < 1:
+            eps = 0.001
+            if (
+                a["bbox"][2] < 1
+                or a["bbox"][3] < 1
+                or (np.abs(a["bbox"][0] - np.abs(a["bbox"][2]) < eps))
+                or (np.abs(a["bbox"][1] - np.abs(a["bbox"][3]) < eps))
+            ):
                 continue
 
             annotation = np.zeros((1, 5))
@@ -441,9 +447,7 @@ class Augmenter(object):
                 format="pascal_voc", min_visibility=0.1, label_fields=["category_ids"]
             ),
         )
-        transformed = transform(
-            image=image, bboxes=bboxes, category_ids=category_ids
-        )
+        transformed = transform(image=image, bboxes=bboxes, category_ids=category_ids)
         transformed_bboxes = np.array(transformed["bboxes"])
         transformed_category_ids = np.array(transformed["category_ids"])
         sample = {
