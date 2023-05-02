@@ -439,7 +439,7 @@ class Augmenter(object):
                 ),
             ],
             bbox_params=A.BboxParams(
-                format="pascal_voc", min_visibility=0.1, label_fields=["category_ids"]
+                format="pascal_voc", min_visibility=0.1, min_area=1, label_fields=["category_ids"]
             ),
         )
         transformed = transform(image=image, bboxes=bboxes, category_ids=category_ids)
