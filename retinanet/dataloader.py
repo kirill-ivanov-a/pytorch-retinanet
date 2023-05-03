@@ -439,17 +439,25 @@ class Augmenter(object):
                 ),
             ],
             bbox_params=A.BboxParams(
-                format="pascal_voc", min_visibility=0.1, min_area=1, label_fields=["category_ids"]
+                format="pascal_voc",
+                min_visibility=0.1,
+                min_area=1,
+                label_fields=["category_ids"],
             ),
         )
         transformed = transform(image=image, bboxes=bboxes, category_ids=category_ids)
         transformed_bboxes = np.array(transformed["bboxes"])
         transformed_category_ids = np.array(transformed["category_ids"])
+        transformed_annots = (
+            np.append(
+                transformed_bboxes, transformed_category_ids.reshape(-1, 1), axis=1
+            )
+            if len(transformed_bboxes) != 0
+            else np.array([])
+        )
         sample = {
             "img": transformed["image"],
-            "annot": np.append(
-                transformed_bboxes, transformed_category_ids.reshape(-1, 1), axis=1
-            ),
+            "annot": transformed_annots,
         }
 
         return sample
