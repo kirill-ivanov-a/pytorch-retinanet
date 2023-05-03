@@ -430,7 +430,7 @@ class Augmenter(object):
         bboxes[:, x_index] = np.clip(bboxes[:, x_index], 0, width - 1)
         bboxes[:, y_index] = np.clip(bboxes[:, y_index], 0, height - 1)
         eps = 0.01
-        mask = (np.abs(bboxes[:, 0] - bboxes[:, 0]) > eps) & (np.abs(bboxes[:, 1] - bboxes[:, 3]) > eps)
+        mask = (np.abs(bboxes[:, 0] - bboxes[:, 2]) > eps) & (np.abs(bboxes[:, 1] - bboxes[:, 3]) > eps)
         bboxes = bboxes[mask]
         category_ids = category_ids[mask]
         transform = A.Compose(
