@@ -429,6 +429,10 @@ class Augmenter(object):
         y_index = [1, 3]
         bboxes[:, x_index] = np.clip(bboxes[:, x_index], 0, width - 1)
         bboxes[:, y_index] = np.clip(bboxes[:, y_index], 0, height - 1)
+        eps = 0.01
+        mask = (np.abs(bboxes[:, 0] - bboxes[:, 0]) > eps) & (np.abs(bboxes[:, 1] - bboxes[:, 3]) > eps)
+        bboxes = bboxes[mask]
+        category_ids = category_ids[mask]
         transform = A.Compose(
             [
                 A.HorizontalFlip(p=0.5),
@@ -445,18 +449,22 @@ class Augmenter(object):
                 label_fields=["category_ids"],
             ),
         )
-        transformed = transform(image=image, bboxes=bboxes, category_ids=category_ids)
-        transformed_bboxes = np.array(transformed["bboxes"])
-        transformed_category_ids = np.array(transformed["category_ids"])
-        transformed_annots = (
-            np.append(
-                transformed_bboxes, transformed_category_ids.reshape(-1, 1), axis=1
+        transformed_annots = np.array([])
+        transformed_image = image
+        if len(bboxes) >= 1:
+            transformed = transform(image=image, bboxes=bboxes, category_ids=category_ids)
+            transformed_bboxes = np.array(transformed["bboxes"])
+            transformed_category_ids = np.array(transformed["category_ids"])
+            transformed_annots = (
+                np.append(
+                    transformed_bboxes, transformed_category_ids.reshape(-1, 1), axis=1
+                )
+                if len(transformed_bboxes) != 0
+                else np.array([])
             )
-            if len(transformed_bboxes) != 0
-            else np.array([])
-        )
+            transformed_image = transformed["image"]
         sample = {
-            "img": transformed["image"],
+            "img": transformed_image,
             "annot": transformed_annots,
         }
 
